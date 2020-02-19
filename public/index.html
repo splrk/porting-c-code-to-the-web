@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Porting C Code to the Web</title>
+    <meta charset="utf-8">
+    <style>
+      @import url(https://fonts.googleapis.com/css?family=Yanone+Kaffeesatz);
+      @import url(https://fonts.googleapis.com/css?family=Droid+Serif:400,700,400italic);
+      @import url(https://fonts.googleapis.com/css?family=Ubuntu+Mono:400,700,400italic);
+
+      body { font-family: 'Droid Serif'; }
+      h1, h2, h3 {
+        font-family: 'Yanone Kaffeesatz';
+        font-weight: normal;
+      }
+      .remark-code, .remark-inline-code { font-family: 'Ubuntu Mono'; }
+    </style>
+    <link rel="stylesheet" type="text/css" href="blue_standard_mod.css"/>
+  </head>
+  <body>
+    <textarea id="source">
+class: title
+--
+# Porting C Code to the Web
+
+### Ryan E. Seal
+
+Febrary 20, 2020
+
+---
+
+class: center
+## Me, Briefly
+
+.middle[.image-small[![Family](./family.jpg)]]
+
+???
+
+I'm a father and a husband.
+
+Oldest is 4 1/2 and my youngest turns 3 in a month.
+
+I work at Trans World Radio.  We are a non-profit Christian Radio network.  We focus on making our media available in as many languages as possible.  Our organization produces content in 230 give or take a few languages.
+
+Enough about me, let's talk about C on the web.
+
+---
+
+## What is WebAssembly?
+
+???
+
+The first thing we need to understand is the tech behind what allows C code to run on the web. and that's WebAsseembly.
+
+--
+
+* Cross platform Binary Specifcation
+
+???
+
+It's a binary specification - a kind of byte code if you are familiar with the compiling process for the JVM or .NET.  Essentially it's an open spec that all major browsers implement a virtual machine for.
+
+--
+
+* Compile-Time target
+
+???
+
+It's generated at compile time.  I.e. the spec is desigend for compiler writers
+
+--
+
+* Designed to be load-time efficient
+
+???
+
+It's designed to be small.  It's mean to load quickly and execute quickly.
+
+Javascript is notoriously bad at computations.  WebAssembly VMs in browsers are ready to start porting.
+---
+
+## Why C / C++?
+
+--
+
+* It's the most mature toolchain to WebAssembly (emscripten)
+
+???
+
+To port C Code to the web, the most useful toolchain is one called emscripten.  There are some other minimal toolchains, but you wind up having to do much of the work that emscripten does by hand.
+
+I actually tried a minimalist toolchain compiling and it was a pain
+
+--
+
+  * .font-small[`\*.c`, `\*.cpp` => **LLVM** => **Emscripten** => `\*.wasm`, `\*.js`, `\*.html`]
+
+???
+
+Emscripten uses clan to compile C code and generate LLVM bitcode and can take advantage of LLVM optimizations.
+
+Emscripten already runs a lot of web assembly and Javascript optimizations such as minimization and dead code elimination.
+
+--
+  * Supports well-know C / C++ libraries such as OpenGL, OpenAL and SDL
+
+???
+
+The emscripten compiler takes a quite a few well known C/C++ libraries and provides bindings for them to Web Apis.
+
+Allows calling JS from C so you can easily defer to Javascript when neccessary.
+
+---
+
+## Why C / C++?
+
+--
+
+* C / C++ still makes up the basis of your software
+
+???
+
+Your browser is written in C++.
+
+Your OS is written in C/C++.
+
+Your Electron app is still written in C/C++.
+
+Python is written in C. Node is written in C.
+
+Web Browser APIs are C under the hood.
+--
+* C is performant
+
+???
+
+Even though we have tons of awesome new languages, C still is the basis for them.  And when you need fast running, efficient code, you drop back to C, this is exactly what numpy and scipy do.
+
+---
+
+class: center
+
+## Let's Code
+
+Loading a Web Assembly Module
+
+.left[```javascript
+fetch('some-file.wasm')
+  .then(res => res.arrayBuffer())
+```]
+
+???
+
+The first thing we need to do is grab our binary file and load it into an Array Buffer.
+
+---
+
+class: center
+
+## Let's Code
+
+Loading a Web Assembly Module
+
+.left[```javascript
+fetch('some-file.wasm')
+  .then(res => res.arrayBuffer())
+  .then(buf => WebAssembly.compile(buf))
+```]
+
+???
+Next we have to compile that byte code down to the mahcine code the browser is running on (e.g x86, 64-bi4, ARM).  This is much faster than compiling javascrippt.
+
+---
+
+class: center
+
+## Let's Code
+
+Loading a Web Assembly Module
+
+.left[```javascript
+fetch('some-file.wasm')
+  .then(res => res.arrayBuffer())
+  .then(buf => WebAsseembly.compile(buf))
+  .then(module => WebAssembly.instantiate(module, jsImports))
+```]
+
+???
+Then we have to load that machine code into memory by creating an instance and possibley passing in a memory instance or Javascript functions
+
+---
+
+class: center
+
+## Let's Code
+
+Loading a Web Assembly Module
+
+.left[```javascript
+fetch('some-file.wasm')
+  .then(res => res.arrayBuffer())
+  .then(buf => WebAsseembly.compile(buf))
+  .then(module => WebAssembly.instantiate(module, jsImports))
+  .then(instance => {
+    // Finally Do something with my instance
+    instance.exports
+    ...
+  })
+```]
+
+???
+
+Finally After that is done we can start using the WASM module.
+
+---
+
+## Let's Code
+
+.left[```javascript
+  WebAssembly.instantiateStreaming(fetch('some-file.wasm', jsImport))
+  .then(instance => {
+    // Finally Do something with my instance
+    instance.exports
+    ...
+  })
+```]
+
+???
+
+Of Course, this can be a pain, so if you only need one instance, we can use instantiateStreaming instead.
+
+I mention all of this because I want to point out that Even C code in the browser is still heavily relient on the Javascript / Web Eco system.
+
+---
+## When should you use emscripten (or similar)?
+
+--
+
+* When you have an old code base you want to run into a Web app
+
+???
+ 
+Great Example: AutoCAD, GoogleEarth
+
+--
+
+* When you need to do lot's of custom / complicated math
+
+???
+
+Examples: TensorFlowJS, Figma
+
+--
+
+* **Don't try to replace JavaScript**
+
+???
+
+---
+## EBU R 128
+ 
+???
+
+The use case we are going to be looking at is checking audio quality according to an audio engineerins standard called EBU R 128.  We often get productions from all around the world from people with widely varying levels of experience.  We like to do automated quality checking before airing programs live.
+
+--
+
+* New Standard for measuring audio loudness
+
+???
+
+This is a standard scale for measuring how loud audio content sounds to human ears. Instead of just measuring the peak decibal at a given point, EBU R 128 measures the density of the entire sound file. 
+
+--
+
+* Looks at sound "density"
+
+???
+
+If you've ever had the problem where when a station or a tv show switches over to commercials and the commercials sound louder than the program, well this is here to help mitigate that.
+
+--
+
+* More info:
+
+https://www.iconnectivity.com/blog/2017/6/10/ebu-r128-the-important-audio-breakthrough-youve-never-heard-of
+
+---
+class: center
+
+## Let's Code
+
+Browser Sync
+
+.left[
+```javascript
+const browserSync = require('browser-sync');
+
+const bs = browserSync.create();
+
+bs.watch('public/**/*.html', bs.reload);
+bs.watch('public/**/*.js', bs.reload);
+bs.watch('public/**/*.wasm', bs.reload);
+
+bs.init({
+  server: './public',
+});
+```
+]
+
+???
+
+We need browser sync because Web assembly has to be loaded and Compiled by Javascript.  If Javascript were able to load local files via fetch, this could turn out really dangerous, so we do need a web server to serve WASM files even though there is no server-side code.
+
+---
+## What's coming to Web Assembly
+
+--
+
+* Garbage Collection
+
+???
+
+This will enable Garbage collected langauges like Go, Java and C++ to have better integration with the web.
+
+Currently one of the problems with the Go compiler is that the compiler has to export the entire goarbage collection algorithm.
+
+It would be nicer to just use the GC algorithm built into the browser.
+
+--
+
+* ES Module integration
+
+```html
+    <script type="module" src="some-file.wasm"></script>
+```
+
+```javascript
+import { myFunc } from 'some-file.wasm';
+```
+
+--
+
+* "Web Assembly's Post-MVP Future" by Lin clark:
+
+.font-small[https://hacks.mozilla.org/2018/10/webassemblys-post-mvp-future/]
+
+---
+## Resources
+
+--
+
+* Mozilla Developer Network:
+
+.font-small[https://developer.mozilla.org/en-US/docs/WebAssembly]
+
+--
+
+* Emscripten Website
+
+.font-small[https://emscripten.org/]
+
+--
+
+* Other Languages:
+
+.font-small[https://github.com/appcypher/awesome-wasm-langs]
+
+---
+## Resources
+
+--
+
+* Code for this talk
+
+.font-small[https://gitlab.com/rseal/emscripten-intro]
+
+* Slides for this talk
+
+.font-small[https://rseal.gitlab.io/porting-c-code-to-the-web]
+
+---
+class: center, middle
+
+# Questions
+
+???
+
+Why not just wrap the c library in RUST?
+
+
+    </textarea>
+    <script src="https://remarkjs.com/downloads/remark-latest.min.js">
+    </script>
+    <script>
+      var slideshow = remark.create();
+    </script>
+  </body>
+</html>
